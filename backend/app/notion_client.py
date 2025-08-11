@@ -16,11 +16,12 @@ class NotionWrapper:
         self,
         profile: Profile,
         ask: Optional[str],
-        draft_text: Optional[str],
-        draft_destination: Optional[str],
+        linkedin_message: Optional[str] = None,
+        email_message: Optional[str] = None,
     ) -> Dict[str, Any]:
         today = dt.date.today().isoformat()
 
+        # Use only the confirmed properties from your schema
         props: Dict[str, Any] = {
             "Name": {"title": [{"text": {"content": profile.name or ""}}]},
             "Company": self._multi_select([profile.currentCompany] if profile.currentCompany else []),
@@ -30,23 +31,39 @@ class NotionWrapper:
             "Last Interaction Date": {"date": {"start": today}},
         }
 
-        # Only set Status when we actually saved a draft, to avoid invalid option errors
-        if draft_text and draft_destination in ("LinkedIn Message", "Email Message"):
+        # Handle messages
+        if linkedin_message:
+            props["LinkedIn Message"] = {"rich_text": [{"text": {"content": linkedin_message}}]}
+
+        if email_message:
+            props["Email Message"] = {"rich_text": [{"text": {"content": email_message}}]}
+
+        # Set status based on whether any checkboxes were selected
+        if linkedin_message or email_message:
+            # Any checkbox selected = "Contacted"
             props["Status"] = {"status": {"name": "Contacted"}}
+        else:
+            # No checkboxes selected = "Need to contact"
+            props["Status"] = {"status": {"name": "Need to contact"}}
 
-        # Save draft to the appropriate field if requested
-        if draft_text and draft_destination == "LinkedIn Message":
-            props["LinkedIn Message"] = {"rich_text": [{"text": {"content": draft_text}}]}
-        elif draft_text and draft_destination == "Email Message":
-            props["Email Message"] = {"rich_text": [{"text": {"content": draft_text}}]}
+        response = self.client.pages.create(
+            parent={"database_id": self.database_id},
+            properties=props,
+        )
 
-        payload = {
-            "parent": {"database_id": self.database_id},
-            "properties": props,
+        return {
+            "pageId": response["id"],
+            "url": response.get("url"),
+            "savedFields": {
+                "name": profile.name,
+                "role": profile.role,
+                "currentCompany": profile.currentCompany,
+                "highestDegree": profile.highestDegree,
+                "schools": profile.schools,
+                "location": profile.location,
+                "linkedinUrl": str(profile.linkedinUrl) if profile.linkedinUrl else None,
+            },
         }
-        return self.client.pages.create(**payload)
 
-    @staticmethod
-    def _multi_select(values: Optional[List[str]]) -> Dict[str, Any]:
-        options = [{"name": v} for v in (values or []) if v]
-        return {"multi_select": options} 
+    def _multi_select(self, items: List[str]) -> Dict[str, Any]:
+        return {"multi_select": [{"name": item} for item in items if item]} 

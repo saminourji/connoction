@@ -2,138 +2,293 @@
 (() => {
   // src/popup.ts
   var BACKEND_URL = "http://127.0.0.1:8000";
+  var extractedProfile = null;
   async function getActiveTab() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.id) throw new Error("No active tab");
     return tab;
   }
-  function setStatus(msg) {
+  function setStatus(msg, type = "loading") {
     const el = document.getElementById("status");
-    if (el) el.textContent = msg;
+    el.textContent = msg;
+    el.className = `status ${type}`;
+    el.classList.remove("hidden");
   }
-  function showResult(notionText, draft) {
-    const wrap = document.getElementById("result");
-    wrap.style.display = "block";
-    const notion = document.getElementById("notion");
-    notion.textContent = notionText;
-    const draftWrap = document.getElementById("draftWrap");
-    if (draft) {
-      draftWrap.style.display = "block";
-      document.getElementById("subject").textContent = draft.subject;
-      document.getElementById("body").textContent = draft.body;
+  function hideStatus() {
+    const el = document.getElementById("status");
+    el.classList.add("hidden");
+  }
+  function showSection(sectionId) {
+    document.getElementById(sectionId).classList.remove("hidden");
+  }
+  function hideSection(sectionId) {
+    document.getElementById(sectionId).classList.add("hidden");
+  }
+  function setButtonLoading(buttonId, loading, originalText) {
+    const btn = document.getElementById(buttonId);
+    if (loading) {
+      btn.disabled = true;
+      btn.setAttribute("data-original-text", btn.textContent || "");
+      btn.textContent = "\u23F3 Loading...";
+      btn.style.opacity = "0.7";
     } else {
-      draftWrap.style.display = "none";
+      btn.disabled = false;
+      btn.textContent = originalText || btn.getAttribute("data-original-text") || btn.textContent;
+      btn.style.opacity = "1";
     }
   }
-  async function onExtract() {
-    setStatus("Extracting visible profile...");
-    const ask = document.getElementById("ask").value.trim();
-    const destination = document.getElementById("destination").value;
-    const tab = await getActiveTab();
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: () => {
-        function text(el) {
-          return el ? (el.textContent || "").replace(/\s+/g, " ").trim() : null;
+  function extractLinkedInProfile() {
+    const profile = {};
+    profile.linkedinUrl = window.location.href;
+    const nameEl = document.querySelector('h1.inline.t-24.v-align-middle.break-words, h1[class*="inline"][class*="t-24"]');
+    profile.name = nameEl?.textContent?.trim() || null;
+    const headlineEl = document.querySelector(".text-body-medium.break-words, [data-generated-suggestion-target] .text-body-medium");
+    const headline = headlineEl?.textContent?.trim();
+    if (headline) {
+      const match = headline.match(/^(.+?)\s*@\s*(.+)$/);
+      if (match) {
+        profile.role = match[1].trim();
+        profile.currentCompany = match[2].trim();
+      } else {
+        profile.role = headline;
+      }
+    }
+    const locationEl = document.querySelector('.text-body-small.inline.t-black--light.break-words, span[class*="text-body-small"][class*="t-black--light"]');
+    profile.location = locationEl?.textContent?.trim() || null;
+    if (!profile.currentCompany) {
+      const firstExpEl = document.querySelector('[data-view-name="profile-component-entity"] .t-bold span[aria-hidden="true"]');
+      const companyFromExp = firstExpEl?.textContent?.trim();
+      if (companyFromExp && !companyFromExp.includes("University") && !companyFromExp.includes("School")) {
+        profile.currentCompany = companyFromExp;
+      }
+    }
+    if (!profile.role) {
+      const roleEl = document.querySelector('[data-view-name="profile-component-entity"] .t-bold span[aria-hidden="true"]');
+      profile.role = roleEl?.textContent?.trim() || null;
+    }
+    profile.schools = [];
+    const educationEls = document.querySelectorAll('[data-view-name="profile-component-entity"] .t-bold span[aria-hidden="true"]');
+    educationEls.forEach((el) => {
+      const text = el.textContent?.trim();
+      if (text && (text.includes("University") || text.includes("School") || text.includes("College") || text.includes("Institute"))) {
+        if (!profile.schools.includes(text)) {
+          profile.schools.push(text);
         }
-        const name = text(document.querySelector("main h1"));
-        let location = null;
-        const nameEl = document.querySelector("main h1");
-        if (nameEl) {
-          const container = nameEl.closest("section, div");
-          if (container) {
-            const locCand = container.querySelector('span[class*="text-body-small"], div[class*="text-body-small"]');
-            location = text(locCand);
-          }
-        }
-        if (!location) {
-          const locCand = document.querySelector('span[class*="text-body-small"], div[class*="text-body-small"]');
-          location = text(locCand);
-        }
-        function extractExperiences() {
-          const items = [];
-          const anchors = Array.from(document.querySelectorAll('a[href*="add-edit/POSITION"], a[data-field="experience_company_logo"]'));
-          for (const a of anchors.slice(0, 10)) {
-            const card = a.closest('[data-view-name="profile-component-entity"], li, div');
-            if (!card) continue;
-            const titleEl = card.querySelector('.t-bold span[aria-hidden="true"], .t-bold, strong');
-            const title = text(titleEl);
-            const companyEl = card.querySelector('.t-14.t-normal span[aria-hidden="true"], .t-14.t-normal');
-            let company = text(companyEl);
-            if (company && company.includes(" \xB7 ")) company = company.split(" \xB7 ")[0].trim();
-            const dateEl = card.querySelector('.pvs-entity__caption-wrapper[aria-hidden="true"], .t-black--light .pvs-entity__caption-wrapper, .t-black--light');
-            const date = text(dateEl);
-            if (title || company) items.push({ title, company, date });
-          }
-          return items;
-        }
-        const exps = extractExperiences();
-        const current = exps.find((e) => (e.date || "").toLowerCase().includes("present")) || exps[0] || { title: null, company: null };
-        function extractEducation() {
-          const results = [];
-          const anchors = Array.from(document.querySelectorAll('a[href*="add-edit/EDUCATION"]'));
-          for (const a of anchors.slice(0, 5)) {
-            const card = a.closest('[data-view-name="profile-component-entity"], li, div');
-            if (!card) continue;
-            const schoolEl = card.querySelector('.t-bold span[aria-hidden="true"], .t-bold');
-            const degreeEl = card.querySelector('.t-14.t-normal span[aria-hidden="true"], .t-14.t-normal');
-            const school = text(schoolEl);
-            const degree = text(degreeEl);
-            results.push({ school, degree });
-          }
-          return results;
-        }
-        const edus = extractEducation();
-        const schools = edus.map((e) => e.school).filter(Boolean);
-        const degrees = edus.map((e) => e.degree).filter(Boolean);
-        const role = current.title || null;
-        const currentCompany = current.company || null;
-        return { name, location, role, currentCompany, schools, degrees };
       }
     });
-    const profile = {
-      name: result?.name || null,
-      role: result?.role || null,
-      currentCompany: result?.currentCompany || null,
-      highestDegree: result?.degrees && result.degrees[0] || null,
-      field: null,
-      schools: (result?.schools || []).slice(0, 3),
-      location: result?.location || null,
-      linkedinUrl: tab.url || void 0
-    };
-    setStatus("Saving to Notion...");
-    const resp = await fetch(`${BACKEND_URL}/draft`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const degreeTexts = document.querySelectorAll('.t-14.t-normal span[aria-hidden="true"]');
+    const degrees = [];
+    degreeTexts.forEach((el) => {
+      const text = el.textContent?.trim();
+      if (text && (text.includes("BS") || text.includes("MS") || text.includes("PhD") || text.includes("Bachelor") || text.includes("Master") || text.includes("Doctor"))) {
+        degrees.push(text);
+      }
+    });
+    if (degrees.length > 0) {
+      const highestDegree = degrees.find((d) => d.includes("PhD") || d.includes("Doctor")) || degrees.find((d) => d.includes("MS") || d.includes("Master")) || degrees.find((d) => d.includes("BS") || d.includes("Bachelor")) || degrees[0];
+      profile.highestDegree = highestDegree;
+    }
+    return profile;
+  }
+  async function extractProfile() {
+    if (extractedProfile) return extractedProfile;
+    const tab = await getActiveTab();
+    if (!tab.url?.includes("linkedin.com")) {
+      throw new Error("Please navigate to a LinkedIn profile page");
+    }
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: extractLinkedInProfile
+    });
+    extractedProfile = result.result;
+    return extractedProfile;
+  }
+  async function handleAddToNotion() {
+    const buttonId = "addToNotionBtn";
+    try {
+      setButtonLoading(buttonId, true);
+      setStatus("Extracting profile information...", "loading");
+      const profile = await extractProfile();
+      console.log("Extracted profile:", profile);
+      if (!profile.name) {
+        throw new Error("Could not extract profile name. Make sure you're on a LinkedIn profile page.");
+      }
+      const linkedinReached = document.getElementById("linkedinReached").checked;
+      const emailReached = document.getElementById("emailReached").checked;
+      let linkedinMessage = null;
+      let emailMessage = null;
+      if (linkedinReached) {
+        linkedinMessage = "Reached out - no message specified";
+      }
+      if (emailReached) {
+        emailMessage = "Reached out - no message specified";
+      }
+      setStatus("Saving to Notion database...", "loading");
+      const payload = {
+        profile,
+        ask: "Add to Notion",
+        options: {
+          saveDraftToNotion: true,
+          linkedinMessage,
+          emailMessage
+        }
+      };
+      const response = await fetch(`${BACKEND_URL}/draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(`Server error: ${errorData.detail || response.statusText}`);
+      }
+      const data = await response.json();
+      console.log("Backend response:", data);
+      const notionContent = document.getElementById("notionContent");
+      notionContent.innerHTML = `
+      <p><strong>${profile.name}</strong> saved successfully!</p>
+      <p>\u{1F4CD} ${profile.location || "Location not found"}</p>
+      <p>\u{1F4BC} ${profile.role || "Role not found"} ${profile.currentCompany ? `at ${profile.currentCompany}` : ""}</p>
+      ${data.notion?.url ? `<a href="${data.notion.url}" target="_blank" class="notion-link">\u{1F517} Open in Notion</a>` : ""}
+    `;
+      showSection("notionResult");
+      setStatus("\u2705 Successfully saved to Notion!", "success");
+      setButtonLoading(buttonId, false, "\u2705 Saved!");
+      setTimeout(() => {
+        const btn = document.getElementById(buttonId);
+        btn.textContent = "Add Profile to Notion";
+      }, 2e3);
+      setTimeout(hideStatus, 4e3);
+    } catch (error) {
+      console.error("Add to Notion error:", error);
+      setStatus(`\u274C Error: ${error}`, "error");
+      setButtonLoading(buttonId, false);
+    }
+  }
+  async function handleGenerateMessage(type) {
+    const buttonId = type === "linkedin" ? "generateLinkedInDraftBtn" : "generateEmailDraftBtn";
+    try {
+      setButtonLoading(buttonId, true);
+      setStatus("Extracting profile information...", "loading");
+      const profile = await extractProfile();
+      if (!profile.name) {
+        throw new Error("Could not extract profile name. Make sure you're on a LinkedIn profile page.");
+      }
+      const askTextarea = document.getElementById(type === "linkedin" ? "linkedinAsk" : "emailAsk");
+      const ask = askTextarea.value.trim();
+      if (!ask) {
+        throw new Error("Please enter your request or select a quick option");
+      }
+      setStatus(`Generating ${type} message with AI...`, "loading");
+      const payload = {
         profile,
         ask,
         options: {
-          saveDraftToNotion: Boolean(destination),
-          draftDestination: destination || null
+          saveDraftToNotion: false,
+          messageType: type
         }
-      })
-    });
-    if (!resp.ok) {
-      const err = await resp.text();
-      setStatus(`Error: ${resp.status} ${err}`);
-      return;
+      };
+      const response = await fetch(`${BACKEND_URL}/draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(`Server error: ${errorData.detail || response.statusText}`);
+      }
+      const data = await response.json();
+      console.log("Backend response:", data);
+      if (!data.draft) {
+        throw new Error("No draft generated. Make sure OpenAI is configured in your .env file.");
+      }
+      const subjectSection = document.getElementById("subjectSection");
+      const draftSubject = document.getElementById("draftSubject");
+      const draftBody = document.getElementById("draftBody");
+      if (type === "email" && data.draft.subject) {
+        subjectSection.classList.remove("hidden");
+        draftSubject.value = data.draft.subject;
+      } else {
+        subjectSection.classList.add("hidden");
+      }
+      draftBody.value = data.draft.body;
+      showSection("draftResult");
+      setStatus(`\u2705 ${type === "linkedin" ? "LinkedIn" : "Email"} message generated successfully!`, "success");
+      setButtonLoading(buttonId, false, "\u2705 Generated!");
+      setTimeout(() => {
+        const btn = document.getElementById(buttonId);
+        btn.textContent = type === "linkedin" ? "Generate LinkedIn Draft" : "Generate Email Draft";
+      }, 2e3);
+      setTimeout(hideStatus, 4e3);
+    } catch (error) {
+      console.error("Generate message error:", error);
+      setStatus(`\u274C Error: ${error}`, "error");
+      setButtonLoading(buttonId, false);
     }
-    const data = await resp.json();
-    setStatus("");
-    showResult(data?.notion?.url || data?.notion?.pageId || "Saved", data.draft);
   }
-  function onCopy() {
-    const subject = document.getElementById("subject").textContent || "";
-    const body = document.getElementById("body").textContent || "";
-    const text = subject ? `Subject: ${subject}
+  function copyDraft() {
+    const subjectEl = document.getElementById("draftSubject");
+    const bodyEl = document.getElementById("draftBody");
+    let fullText = bodyEl.value;
+    if (!document.getElementById("subjectSection").classList.contains("hidden")) {
+      fullText = `Subject: ${subjectEl.value}
 
-${body}` : body;
-    navigator.clipboard.writeText(text);
+${bodyEl.value}`;
+    }
+    navigator.clipboard.writeText(fullText).then(() => {
+      const btn = document.getElementById("copyBtn");
+      const originalText = btn.textContent;
+      btn.textContent = "\u2705 Copied!";
+      btn.style.background = "#059669";
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.style.background = "#10b981";
+      }, 2e3);
+    }).catch(() => {
+      setStatus("\u274C Failed to copy to clipboard", "error");
+    });
   }
-  document.getElementById("extract").addEventListener("click", () => {
-    onExtract().catch((err) => setStatus(String(err)));
+  function setupQuickOptions() {
+    document.querySelectorAll(".quick-option").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const target = e.target;
+        const ask = target.getAttribute("data-ask");
+        const isLinkedin = target.closest("#linkedinMessageSection");
+        const textarea = document.getElementById(isLinkedin ? "linkedinAsk" : "emailAsk");
+        textarea.value = ask || "";
+        target.style.background = "#e5e7eb";
+        setTimeout(() => {
+          target.style.background = "white";
+        }, 200);
+      });
+    });
+  }
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("addToNotionBtn")?.addEventListener("click", handleAddToNotion);
+    document.getElementById("generateLinkedInBtn")?.addEventListener("click", () => {
+      hideSection("messageTypeSection");
+      hideSection("emailMessageSection");
+      showSection("linkedinMessageSection");
+    });
+    document.getElementById("generateEmailBtn")?.addEventListener("click", () => {
+      hideSection("messageTypeSection");
+      hideSection("linkedinMessageSection");
+      showSection("emailMessageSection");
+    });
+    document.getElementById("backFromLinkedInBtn")?.addEventListener("click", () => {
+      hideSection("linkedinMessageSection");
+      hideSection("emailMessageSection");
+      showSection("messageTypeSection");
+    });
+    document.getElementById("backFromEmailBtn")?.addEventListener("click", () => {
+      hideSection("linkedinMessageSection");
+      hideSection("emailMessageSection");
+      showSection("messageTypeSection");
+    });
+    document.getElementById("generateLinkedInDraftBtn")?.addEventListener("click", () => handleGenerateMessage("linkedin"));
+    document.getElementById("generateEmailDraftBtn")?.addEventListener("click", () => handleGenerateMessage("email"));
+    document.getElementById("copyBtn")?.addEventListener("click", copyDraft);
+    setupQuickOptions();
   });
-  document.getElementById("copy").addEventListener("click", onCopy);
 })();
 //# sourceMappingURL=popup.js.map

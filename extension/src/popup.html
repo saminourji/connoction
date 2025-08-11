@@ -5,37 +5,304 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Connoction</title>
     <style>
-      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 12px; width: 360px; }
-      textarea { width: 100%; height: 90px; }
-      select, button, input { width: 100%; margin-top: 8px; }
-      .row { margin-top: 10px; }
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+      body { 
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+        margin: 0; 
+        width: 380px; 
+        background: #f8f9fa;
+      }
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 16px 20px;
+        text-align: center;
+      }
+      .header h2 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .content {
+        padding: 20px;
+      }
+      .section {
+        margin-bottom: 20px;
+        padding: 16px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+      .section h3 {
+        margin: 0 0 12px 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: #374151;
+      }
+      button {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 6px;
+        font-weight: 500;
+        cursor: pointer;
+        margin-bottom: 8px;
+        transition: all 0.2s;
+        font-size: 14px;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+      .btn-primary {
+        background: #3b82f6;
+        color: white;
+      }
+      .btn-primary:hover:not(:disabled) {
+        background: #2563eb;
+        transform: translateY(-1px);
+      }
+      .btn-secondary {
+        background: #10b981;
+        color: white;
+      }
+      .btn-secondary:hover:not(:disabled) {
+        background: #059669;
+        transform: translateY(-1px);
+      }
+      .btn-outline {
+        background: white;
+        color: #6b7280;
+        border: 1px solid #d1d5db;
+      }
+      .btn-outline:hover:not(:disabled) {
+        background: #f9fafb;
+        border-color: #9ca3af;
+      }
+      .btn-outline:active {
+        background: #e5e7eb;
+      }
+      select, input, textarea {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 14px;
+        box-sizing: border-box;
+        margin-bottom: 8px;
+      }
+      select:focus, input:focus, textarea:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+      textarea {
+        resize: vertical;
+        min-height: 80px;
+      }
+      .status {
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        text-align: center;
+        margin-bottom: 12px;
+        font-weight: 500;
+      }
+      .status.loading {
+        background: #fef3c7;
+        color: #92400e;
+        border-left: 4px solid #f59e0b;
+      }
+      .status.success {
+        background: #d1fae5;
+        color: #065f46;
+        border-left: 4px solid #10b981;
+      }
+      .status.error {
+        background: #fee2e2;
+        color: #991b1b;
+        border-left: 4px solid #ef4444;
+      }
+      .hidden {
+        display: none;
+      }
+      .notion-link {
+        display: inline-block;
+        color: #3b82f6;
+        text-decoration: none;
+        font-weight: 500;
+        margin-top: 8px;
+        padding: 6px 12px;
+        background: #eff6ff;
+        border-radius: 4px;
+        transition: all 0.2s;
+      }
+      .notion-link:hover {
+        background: #dbeafe;
+        text-decoration: none;
+      }
+      .checkbox-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        border-radius: 4px;
+        transition: background 0.2s;
+      }
+      .checkbox-item:hover {
+        background: #f9fafb;
+      }
+      .checkbox-item input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+        accent-color: #3b82f6;
+      }
+      .checkbox-item label {
+        margin: 0;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .quick-options {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .quick-option {
+        padding: 8px 12px;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .draft-result {
+        background: #f8f9fa;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 12px;
+        margin-top: 12px;
+      }
+      .draft-result label {
+        display: block;
+        font-weight: 500;
+        margin-bottom: 4px;
+        font-size: 13px;
+        color: #374151;
+      }
+      .copy-btn {
+        background: #10b981;
+        color: white;
+        padding: 8px 12px;
+        font-size: 13px;
+        margin-top: 8px;
+        transition: all 0.2s;
+      }
+      .copy-btn:hover:not(:disabled) {
+        background: #059669;
+        transform: translateY(-1px);
+      }
+      .profile-info {
+        font-size: 13px;
+        line-height: 1.4;
+        color: #6b7280;
+      }
+      .profile-info p {
+        margin: 4px 0;
+      }
+      .profile-info strong {
+        color: #374151;
+        font-size: 14px;
+      }
     </style>
   </head>
   <body>
-    <h3>Connoction</h3>
-    <label>Ask</label>
-    <textarea id="ask" placeholder="What do you want to ask? (e.g., 15-min chat about X)"></textarea>
-
-    <label class="row">Save draft as</label>
-    <select id="destination">
-      <option value="">Do not save draft</option>
-      <option value="LinkedIn Message">LinkedIn Message</option>
-      <option value="Email Message">Email Message</option>
-    </select>
-
-    <button id="extract">Extract & Save</button>
-
-    <div id="status" class="row"></div>
-
-    <div id="result" class="row" style="display:none">
-      <div><strong>Notion:</strong> <span id="notion"></span></div>
-      <div id="draftWrap" style="display:none" class="row">
-        <div><strong>Subject</strong></div>
-        <div id="subject" class="mono"></div>
-        <div class="row"><strong>Body</strong></div>
-        <div id="body" class="mono"></div>
-        <button id="copy">Copy</button>
+    <div class="header">
+      <h2>🤝 Connoction</h2>
+    </div>
+    
+    <div class="content">
+      <div id="status" class="status hidden"></div>
+      
+      <!-- Step 1: Add to Notion -->
+      <div class="section">
+        <h3>📝 Add to Notion</h3>
+        <div class="checkbox-group">
+          <div class="checkbox-item">
+            <input type="checkbox" id="linkedinReached">
+            <label for="linkedinReached">LinkedIn - Already reached out</label>
+          </div>
+          <div class="checkbox-item">
+            <input type="checkbox" id="emailReached">
+            <label for="emailReached">Email - Already reached out</label>
+          </div>
+        </div>
+        <button id="addToNotionBtn" class="btn-primary">Add Profile to Notion</button>
+      </div>
+      
+      <!-- Step 2: Generate Message -->
+      <div class="section">
+        <h3>✉️ Generate Outreach Message</h3>
+        
+        <div id="messageTypeSection">
+          <button id="generateLinkedInBtn" class="btn-secondary">Generate LinkedIn Message</button>
+          <button id="generateEmailBtn" class="btn-secondary">Generate Email Message</button>
+        </div>
+        
+        <!-- LinkedIn Message Generation -->
+        <div id="linkedinMessageSection" class="hidden">
+          <div style="display: flex; align-items: center; margin-bottom: 12px;">
+            <button id="backFromLinkedInBtn" class="btn-outline" style="width: auto; margin-right: 12px; margin-bottom: 0; padding: 6px 12px;">← Back</button>
+            <h3 style="margin: 0;">LinkedIn Message</h3>
+          </div>
+          <div class="quick-options">
+            <button class="btn-outline quick-option" data-ask="Request to chat for 15 mins">15min chat</button>
+            <button class="btn-outline quick-option" data-ask="Request to chat for 20 mins">20min chat</button>
+            <button class="btn-outline quick-option" data-ask="Request to review resume">Resume review</button>
+            <button class="btn-outline quick-option" data-ask="Request for career advice">Career advice</button>
+          </div>
+          <textarea id="linkedinAsk" placeholder="Or enter custom request..."></textarea>
+          <button id="generateLinkedInDraftBtn" class="btn-secondary">Generate LinkedIn Draft</button>
+        </div>
+        
+        <!-- Email Message Generation -->
+        <div id="emailMessageSection" class="hidden">
+          <div style="display: flex; align-items: center; margin-bottom: 12px;">
+            <button id="backFromEmailBtn" class="btn-outline" style="width: auto; margin-right: 12px; margin-bottom: 0; padding: 6px 12px;">← Back</button>
+            <h3 style="margin: 0;">Email Message</h3>
+          </div>
+          <div class="quick-options">
+            <button class="btn-outline quick-option" data-ask="Request to chat for 15 mins">15min chat</button>
+            <button class="btn-outline quick-option" data-ask="Request to chat for 20 mins">20min chat</button>
+            <button class="btn-outline quick-option" data-ask="Request to review resume">Resume review</button>
+            <button class="btn-outline quick-option" data-ask="Request for career advice">Career advice</button>
+          </div>
+          <textarea id="emailAsk" placeholder="Or enter custom request..."></textarea>
+          <button id="generateEmailDraftBtn" class="btn-secondary">Generate Email Draft</button>
+        </div>
+      </div>
+      
+      <!-- Results -->
+      <div id="notionResult" class="section hidden">
+        <h3>✅ Saved to Notion</h3>
+        <div id="notionContent" class="profile-info"></div>
+      </div>
+      
+      <div id="draftResult" class="section hidden">
+        <h3>📝 Generated Message</h3>
+        <div class="draft-result">
+          <div id="subjectSection" class="hidden">
+            <label>Subject:</label>
+            <input id="draftSubject" type="text" readonly />
+          </div>
+          <label>Message:</label>
+          <textarea id="draftBody" readonly rows="6"></textarea>
+          <button id="copyBtn" class="copy-btn">📋 Copy to Clipboard</button>
+        </div>
       </div>
     </div>
 

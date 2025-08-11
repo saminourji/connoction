@@ -28,71 +28,57 @@ def healthz() -> dict:
 
 
 @app.post("/draft", response_model=DraftResponse)
-async def create_draft(payload: DraftRequest) -> DraftResponse:
-    if not (config.NOTION_API_KEY and config.NOTION_DATABASE_ID):
-        raise HTTPException(status_code=500, detail="Notion is not configured")
-
+async def create_draft(request: DraftRequest) -> DraftResponse:
     # Normalize profile
-    profile = _normalize_profile(payload.profile)
-
-    # Always create Notion page first
-    notion = NotionWrapper(config.NOTION_API_KEY, config.NOTION_DATABASE_ID)
-
-    draft_text: Optional[str] = None
-    provider: Optional[str] = None
-    message: Optional[str] = None
-
-    # Generate draft if OpenAI configured
-    draft, provider, message = await maybe_generate_draft(profile, payload.ask)
-    if draft:
-        draft_text = f"Subject: {draft.subject}\n\n{draft.body}".strip()
-
-    # Save to Notion (including optional draft)
-    try:
-        page = notion.create_profile_page(
-            profile=profile,
-            ask=payload.ask,
-            draft_text=draft_text if (payload.options and payload.options.saveDraftToNotion) else None,
-            draft_destination=(payload.options.draftDestination if payload.options else None),
-        )
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=502, detail=f"Notion error: {exc}") from exc
-
-    notion_result = NotionResult(
-        pageId=page.get("id"),
-        url=page.get("url"),
-        savedFields=profile,
+    profile = Profile(
+        name=clean_text(request.profile.name),
+        role=clean_text(request.profile.role),
+        currentCompany=clean_text(request.profile.currentCompany),
+        highestDegree=clean_text(request.profile.highestDegree),
+        field=derive_field(request.profile.role),
+        schools=[clean_text(s) for s in request.profile.schools if clean_text(s)],
+        location=clean_text(request.profile.location),
+        linkedinUrl=request.profile.linkedinUrl,
     )
 
-    return DraftResponse(
-        notion=notion_result,
-        draft=draft,
-        provider=provider,  # "openai" or None
-        message=message,
-    )
+    response = DraftResponse()
 
+    # Handle Notion saving
+    if request.options and request.options.saveDraftToNotion:
+        if not config.NOTION_API_KEY or not config.NOTION_DATABASE_ID:
+            raise HTTPException(status_code=500, detail="Notion is not configured")
 
-def _normalize_profile(p: Profile) -> Profile:
-    name = clean_text(p.name)
-    role = clean_text(p.role)
-    current_company = clean_text(p.currentCompany)
-    highest_degree = clean_text(p.highestDegree)
-    field = p.field or derive_field(role)
-    schools = [s for s in (p.schools or []) if s]
-    location = clean_text(p.location)
+        try:
+            notion = NotionWrapper(config.NOTION_API_KEY, config.NOTION_DATABASE_ID)
+            
+            # Get messages from options
+            linkedin_message = request.options.linkedinMessage
+            email_message = request.options.emailMessage
+            
+            result = notion.create_profile_page(
+                profile, 
+                request.ask, 
+                linkedin_message=linkedin_message,
+                email_message=email_message
+            )
+            
+            response.notion = NotionResult(
+                pageId=result["pageId"],
+                url=result.get("url"),
+                savedFields=result.get("savedFields", {})
+            )
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Notion error: {e}")
 
-    # If highestDegree not provided but schools contain degree info, try to pick
-    if not highest_degree and schools:
-        hd = pick_highest_degree([p.highestDegree] + schools if p.highestDegree else schools)
-        highest_degree = hd
+    # Handle message generation
+    if request.options and request.options.messageType:
+        message_type = request.options.messageType
+        draft, provider, error = await maybe_generate_draft(profile, request.ask, message_type)
+        
+        if error:
+            response.message = error
+        elif draft:
+            response.draft = draft
+            response.provider = provider
 
-    return Profile(
-        name=name,
-        role=role,
-        currentCompany=current_company,
-        highestDegree=highest_degree,
-        field=field,
-        schools=schools,
-        location=location,
-        linkedinUrl=p.linkedinUrl,
-    ) 
+    return response 

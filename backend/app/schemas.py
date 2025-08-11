@@ -15,13 +15,16 @@ class Profile(BaseModel):
 
 
 class Draft(BaseModel):
-    subject: str
+    subject: Optional[str] = None
     body: str
 
 
 class DraftOptions(BaseModel):
     saveDraftToNotion: bool = False
     draftDestination: Optional[Literal["LinkedIn Message", "Email Message"]] = None
+    messageType: Optional[Literal["linkedin", "email"]] = None
+    linkedinMessage: Optional[str] = None
+    emailMessage: Optional[str] = None
 
 
 class DraftRequest(BaseModel):
@@ -33,11 +36,11 @@ class DraftRequest(BaseModel):
 class NotionResult(BaseModel):
     pageId: str
     url: Optional[str] = None
-    savedFields: Profile
+    savedFields: dict = Field(default_factory=dict)
 
 
 class DraftResponse(BaseModel):
-    notion: NotionResult
+    notion: Optional[NotionResult] = None
     draft: Optional[Draft] = None
-    provider: Optional[Literal["openai"]] = None
+    provider: Optional[str] = None
     message: Optional[str] = None 
