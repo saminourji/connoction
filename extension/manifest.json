@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Connoction",
+  "version": "0.1.0",
+  "description": "Capture LinkedIn profile info and save to Notion; optionally generate outreach email.",
+  "action": {
+    "default_title": "Connoction",
+    "default_popup": "src/popup.html"
+  },
+  "permissions": ["activeTab", "scripting", "tabs"],
+  "host_permissions": ["http://127.0.0.1:8000/*"]
+} 

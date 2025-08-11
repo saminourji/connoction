@@ -1,0 +1,13 @@
+{
+  "name": "connoction-extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src/popup.ts --bundle --outfile=popup.js --platform=browser --format=iife --sourcemap",
+    "watch": "esbuild src/popup.ts --bundle --outfile=popup.js --platform=browser --format=iife --sourcemap --watch"
+  },
+  "devDependencies": {
+    "esbuild": "0.23.0",
+    "typescript": "5.5.4"
+  }
+} 

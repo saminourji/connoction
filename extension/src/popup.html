@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Connoction</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 12px; width: 360px; }
+      textarea { width: 100%; height: 90px; }
+      select, button, input { width: 100%; margin-top: 8px; }
+      .row { margin-top: 10px; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h3>Connoction</h3>
+    <label>Ask</label>
+    <textarea id="ask" placeholder="What do you want to ask? (e.g., 15-min chat about X)"></textarea>
+
+    <label class="row">Save draft as</label>
+    <select id="destination">
+      <option value="">Do not save draft</option>
+      <option value="LinkedIn Message">LinkedIn Message</option>
+      <option value="Email Message">Email Message</option>
+    </select>
+
+    <button id="extract">Extract & Save</button>
+
+    <div id="status" class="row"></div>
+
+    <div id="result" class="row" style="display:none">
+      <div><strong>Notion:</strong> <span id="notion"></span></div>
+      <div id="draftWrap" style="display:none" class="row">
+        <div><strong>Subject</strong></div>
+        <div id="subject" class="mono"></div>
+        <div class="row"><strong>Body</strong></div>
+        <div id="body" class="mono"></div>
+        <button id="copy">Copy</button>
+      </div>
+    </div>
+
+    <script src="../popup.js"></script>
+  </body>
+</html> 
