@@ -5,303 +5,452 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Connoction</title>
     <style>
-      body { 
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-        margin: 0; 
-        width: 380px; 
-        background: #f8f9fa;
-      }
-      .header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 16px 20px;
-        text-align: center;
-      }
-      .header h2 {
+      * {
         margin: 0;
-        font-size: 18px;
-        font-weight: 600;
+        padding: 0;
+        box-sizing: border-box;
       }
-      .content {
-        padding: 20px;
+      
+      body { 
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif; 
+        width: 380px;
+        min-height: 500px;
+        background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+        color: #ffffff;
+        overflow: hidden;
       }
+      
+      .glass-container {
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        margin: 16px;
+        padding: 24px;
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .glass-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      }
+      
+      .header {
+        text-align: center;
+        margin-bottom: 32px;
+      }
+      
+      .header h1 {
+        font-size: 24px;
+        font-weight: 300;
+        letter-spacing: -0.5px;
+        background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
       .section {
-        margin-bottom: 20px;
-        padding: 16px;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        margin-bottom: 24px;
       }
-      .section h3 {
-        margin: 0 0 12px 0;
+      
+      .section-title {
         font-size: 14px;
-        font-weight: 600;
-        color: #374151;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 16px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
       }
+      
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      .glass-panel:hover {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.15);
+        transform: translateY(-1px);
+      }
+      
       button {
         width: 100%;
-        padding: 12px;
-        border: none;
-        border-radius: 6px;
+        padding: 14px 20px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        color: #ffffff;
+        font-size: 14px;
         font-weight: 500;
         cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         margin-bottom: 8px;
-        transition: all 0.2s;
-        font-size: 14px;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
       }
+      
+      button:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.2);
+        transform: translateY(-1px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      }
+      
+      button:active {
+        transform: translateY(0);
+      }
+      
       button:disabled {
+        opacity: 0.5;
         cursor: not-allowed;
-        opacity: 0.6;
+        transform: none;
       }
+      
       .btn-primary {
-        background: #3b82f6;
-        color: white;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.08) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.2);
       }
+      
       .btn-primary:hover:not(:disabled) {
-        background: #2563eb;
-        transform: translateY(-1px);
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.12) 100%);
+        box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1);
       }
+      
       .btn-secondary {
-        background: #10b981;
-        color: white;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
       }
+      
       .btn-secondary:hover:not(:disabled) {
-        background: #059669;
-        transform: translateY(-1px);
+        background: rgba(0, 0, 0, 0.2);
+        border-color: rgba(255, 255, 255, 0.15);
       }
-      .btn-outline {
-        background: white;
-        color: #6b7280;
-        border: 1px solid #d1d5db;
+      
+      .btn-back {
+        width: auto;
+        padding: 8px 16px;
+        font-size: 12px;
+        margin-right: 12px;
+        margin-bottom: 0;
+        background: rgba(255, 255, 255, 0.05);
       }
-      .btn-outline:hover:not(:disabled) {
-        background: #f9fafb;
-        border-color: #9ca3af;
-      }
-      .btn-outline:active {
-        background: #e5e7eb;
-      }
-      select, input, textarea {
+      
+      input, textarea, select {
         width: 100%;
-        padding: 8px 12px;
-        border: 1px solid #d1d5db;
-        border-radius: 6px;
+        padding: 12px 16px;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        color: #ffffff;
         font-size: 14px;
-        box-sizing: border-box;
-        margin-bottom: 8px;
+        margin-bottom: 12px;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        transition: all 0.3s ease;
       }
-      select:focus, input:focus, textarea:focus {
+      
+      input:focus, textarea:focus, select:focus {
         outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        border-color: rgba(255, 255, 255, 0.3);
+        background: rgba(0, 0, 0, 0.1);
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
       }
+      
+      input::placeholder, textarea::placeholder {
+        color: rgba(255, 255, 255, 0.4);
+      }
+      
       textarea {
         resize: vertical;
         min-height: 80px;
+        font-family: inherit;
       }
+      
       .status {
-        padding: 8px 12px;
-        border-radius: 6px;
+        padding: 12px 16px;
+        border-radius: 8px;
         font-size: 13px;
         text-align: center;
-        margin-bottom: 12px;
+        margin-bottom: 16px;
         font-weight: 500;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
       }
+      
       .status.loading {
-        background: #fef3c7;
-        color: #92400e;
-        border-left: 4px solid #f59e0b;
+        background: rgba(255, 193, 7, 0.1);
+        border: 1px solid rgba(255, 193, 7, 0.2);
+        color: #ffc107;
       }
+      
       .status.success {
-        background: #d1fae5;
-        color: #065f46;
-        border-left: 4px solid #10b981;
+        background: rgba(34, 197, 94, 0.1);
+        border: 1px solid rgba(34, 197, 94, 0.2);
+        color: #22c55e;
       }
+      
       .status.error {
-        background: #fee2e2;
-        color: #991b1b;
-        border-left: 4px solid #ef4444;
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        color: #ef4444;
       }
+      
       .hidden {
         display: none;
       }
-      .notion-link {
-        display: inline-block;
-        color: #3b82f6;
-        text-decoration: none;
-        font-weight: 500;
-        margin-top: 8px;
-        padding: 6px 12px;
-        background: #eff6ff;
-        border-radius: 4px;
-        transition: all 0.2s;
-      }
-      .notion-link:hover {
-        background: #dbeafe;
-        text-decoration: none;
-      }
+      
       .checkbox-group {
         display: flex;
         flex-direction: column;
-        gap: 8px;
-        margin-bottom: 12px;
+        gap: 12px;
+        margin-bottom: 20px;
       }
+      
       .checkbox-item {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 8px;
-        border-radius: 4px;
-        transition: background 0.2s;
+        gap: 12px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        cursor: pointer;
       }
+      
       .checkbox-item:hover {
-        background: #f9fafb;
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.1);
       }
+      
       .checkbox-item input[type="checkbox"] {
-        width: auto;
+        width: 18px;
+        height: 18px;
         margin: 0;
-        accent-color: #3b82f6;
+        accent-color: #ffffff;
+        cursor: pointer;
       }
+      
       .checkbox-item label {
         margin: 0;
         cursor: pointer;
         font-size: 14px;
+        color: rgba(255, 255, 255, 0.8);
+        flex: 1;
       }
+      
       .quick-options {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 8px;
-        margin-bottom: 12px;
+        margin-bottom: 16px;
       }
+      
       .quick-option {
-        padding: 8px 12px;
+        padding: 10px 12px;
         font-size: 12px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      .draft-result {
-        background: #f8f9fa;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        padding: 12px;
-        margin-top: 12px;
+      
+      .quick-option:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.08);
       }
+      
+      .section-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      
+      .section-header h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 500;
+        color: #ffffff;
+      }
+      
+      .notion-link {
+        display: inline-block;
+        color: #ffffff;
+        text-decoration: none;
+        font-weight: 500;
+        padding: 8px 16px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 6px;
+        margin-top: 12px;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+      
+      .notion-link:hover {
+        background: rgba(255, 255, 255, 0.15);
+        text-decoration: none;
+        transform: translateY(-1px);
+      }
+      
+      .draft-result {
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 16px;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+      
       .draft-result label {
         display: block;
         font-weight: 500;
-        margin-bottom: 4px;
+        margin-bottom: 8px;
         font-size: 13px;
-        color: #374151;
+        color: rgba(255, 255, 255, 0.7);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
       }
-      .copy-btn {
-        background: #10b981;
-        color: white;
-        padding: 8px 12px;
-        font-size: 13px;
-        margin-top: 8px;
-        transition: all 0.2s;
-      }
-      .copy-btn:hover:not(:disabled) {
-        background: #059669;
-        transform: translateY(-1px);
-      }
+      
       .profile-info {
         font-size: 13px;
-        line-height: 1.4;
-        color: #6b7280;
+        line-height: 1.5;
+        color: rgba(255, 255, 255, 0.7);
       }
+      
       .profile-info p {
-        margin: 4px 0;
+        margin: 8px 0;
       }
+      
       .profile-info strong {
-        color: #374151;
-        font-size: 14px;
+        color: #ffffff;
+        font-weight: 500;
+      }
+      
+      /* Scrollbar styling */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      
+      ::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      
+      ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
+      }
+      
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.3);
       }
     </style>
   </head>
   <body>
-    <div class="header">
-      <h2>🤝 Connoction</h2>
-    </div>
-    
-    <div class="content">
-      <div id="status" class="status hidden"></div>
-      
-      <!-- Step 1: Add to Notion -->
-      <div class="section">
-        <h3>📝 Add to Notion</h3>
-        <div class="checkbox-group">
-          <div class="checkbox-item">
-            <input type="checkbox" id="linkedinReached">
-            <label for="linkedinReached">LinkedIn - Already reached out</label>
-          </div>
-          <div class="checkbox-item">
-            <input type="checkbox" id="emailReached">
-            <label for="emailReached">Email - Already reached out</label>
-          </div>
-        </div>
-        <button id="addToNotionBtn" class="btn-primary">Add Profile to Notion</button>
+    <div class="glass-container">
+      <div class="header">
+        <h1>Connoction</h1>
       </div>
       
-      <!-- Step 2: Generate Message -->
+      <div id="status" class="status hidden"></div>
+      
+      <!-- Add to Notion -->
       <div class="section">
-        <h3>✉️ Generate Outreach Message</h3>
-        
-        <div id="messageTypeSection">
-          <button id="generateLinkedInBtn" class="btn-secondary">Generate LinkedIn Message</button>
-          <button id="generateEmailBtn" class="btn-secondary">Generate Email Message</button>
+        <div class="section-title">Save Profile</div>
+        <div class="glass-panel">
+          <div class="checkbox-group">
+            <div class="checkbox-item">
+              <input type="checkbox" id="linkedinReached">
+              <label for="linkedinReached">LinkedIn - Already reached out</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="emailReached">
+              <label for="emailReached">Email - Already reached out</label>
+            </div>
+          </div>
+          <button id="addToNotionBtn" class="btn-primary">Add to Notion</button>
         </div>
-        
-        <!-- LinkedIn Message Generation -->
-        <div id="linkedinMessageSection" class="hidden">
-          <div style="display: flex; align-items: center; margin-bottom: 12px;">
-            <button id="backFromLinkedInBtn" class="btn-outline" style="width: auto; margin-right: 12px; margin-bottom: 0; padding: 6px 12px;">← Back</button>
-            <h3 style="margin: 0;">LinkedIn Message</h3>
+      </div>
+      
+      <!-- Generate Message -->
+      <div class="section">
+        <div class="section-title">Generate Message</div>
+        <div class="glass-panel">
+          <div id="messageTypeSection">
+            <button id="generateLinkedInBtn" class="btn-secondary">LinkedIn Message</button>
+            <button id="generateEmailBtn" class="btn-secondary">Email Message</button>
           </div>
-          <div class="quick-options">
-            <button class="btn-outline quick-option" data-ask="Request to chat for 15 mins">15min chat</button>
-            <button class="btn-outline quick-option" data-ask="Request to chat for 20 mins">20min chat</button>
-            <button class="btn-outline quick-option" data-ask="Request to review resume">Resume review</button>
-            <button class="btn-outline quick-option" data-ask="Request for career advice">Career advice</button>
+          
+          <!-- LinkedIn Message Generation -->
+          <div id="linkedinMessageSection" class="hidden">
+            <div class="section-header">
+              <button id="backFromLinkedInBtn" class="btn-back">← Back</button>
+              <h3>LinkedIn Message</h3>
+            </div>
+            <div class="quick-options">
+              <button class="quick-option" data-ask="Request to chat for 15 mins">15min chat</button>
+              <button class="quick-option" data-ask="Request to chat for 20 mins">20min chat</button>
+              <button class="quick-option" data-ask="Request to review resume">Resume review</button>
+              <button class="quick-option" data-ask="Request for career advice">Career advice</button>
+            </div>
+            <textarea id="linkedinAsk" placeholder="Or enter custom request..."></textarea>
+            <button id="generateLinkedInDraftBtn" class="btn-primary">Generate Draft</button>
           </div>
-          <textarea id="linkedinAsk" placeholder="Or enter custom request..."></textarea>
-          <button id="generateLinkedInDraftBtn" class="btn-secondary">Generate LinkedIn Draft</button>
-        </div>
-        
-        <!-- Email Message Generation -->
-        <div id="emailMessageSection" class="hidden">
-          <div style="display: flex; align-items: center; margin-bottom: 12px;">
-            <button id="backFromEmailBtn" class="btn-outline" style="width: auto; margin-right: 12px; margin-bottom: 0; padding: 6px 12px;">← Back</button>
-            <h3 style="margin: 0;">Email Message</h3>
+          
+          <!-- Email Message Generation -->
+          <div id="emailMessageSection" class="hidden">
+            <div class="section-header">
+              <button id="backFromEmailBtn" class="btn-back">← Back</button>
+              <h3>Email Message</h3>
+            </div>
+            <div class="quick-options">
+              <button class="quick-option" data-ask="Request to chat for 15 mins">15min chat</button>
+              <button class="quick-option" data-ask="Request to chat for 20 mins">20min chat</button>
+              <button class="quick-option" data-ask="Request to review resume">Resume review</button>
+              <button class="quick-option" data-ask="Request for career advice">Career advice</button>
+            </div>
+            <textarea id="emailAsk" placeholder="Or enter custom request..."></textarea>
+            <button id="generateEmailDraftBtn" class="btn-primary">Generate Draft</button>
           </div>
-          <div class="quick-options">
-            <button class="btn-outline quick-option" data-ask="Request to chat for 15 mins">15min chat</button>
-            <button class="btn-outline quick-option" data-ask="Request to chat for 20 mins">20min chat</button>
-            <button class="btn-outline quick-option" data-ask="Request to review resume">Resume review</button>
-            <button class="btn-outline quick-option" data-ask="Request for career advice">Career advice</button>
-          </div>
-          <textarea id="emailAsk" placeholder="Or enter custom request..."></textarea>
-          <button id="generateEmailDraftBtn" class="btn-secondary">Generate Email Draft</button>
         </div>
       </div>
       
       <!-- Results -->
       <div id="notionResult" class="section hidden">
-        <h3>✅ Saved to Notion</h3>
-        <div id="notionContent" class="profile-info"></div>
+        <div class="section-title">Saved to Notion</div>
+        <div class="glass-panel">
+          <div id="notionContent" class="profile-info"></div>
+        </div>
       </div>
       
       <div id="draftResult" class="section hidden">
-        <h3>📝 Generated Message</h3>
-        <div class="draft-result">
-          <div id="subjectSection" class="hidden">
-            <label>Subject:</label>
-            <input id="draftSubject" type="text" readonly />
+        <div class="section-title">Generated Message</div>
+        <div class="glass-panel">
+          <div class="draft-result">
+            <div id="subjectSection" class="hidden">
+              <label>Subject</label>
+              <input id="draftSubject" type="text" readonly />
+            </div>
+            <label>Message</label>
+            <textarea id="draftBody" readonly rows="6"></textarea>
+            <button id="copyBtn" class="btn-primary">Copy to Clipboard</button>
           </div>
-          <label>Message:</label>
-          <textarea id="draftBody" readonly rows="6"></textarea>
-          <button id="copyBtn" class="copy-btn">📋 Copy to Clipboard</button>
         </div>
       </div>
     </div>
