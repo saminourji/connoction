@@ -7,11 +7,14 @@ class Profile(BaseModel):
     name: Optional[str] = None
     role: Optional[str] = None
     currentCompany: Optional[str] = None
+    companies: List[str] = Field(default_factory=list)
     highestDegree: Optional[str] = None
     field: Optional[str] = None
     schools: List[str] = Field(default_factory=list)
     location: Optional[str] = None
     linkedinUrl: Optional[HttpUrl] = None
+    # Optional HTML content for LLM parsing
+    htmlContent: Optional[str] = None
 
 
 class Draft(BaseModel):

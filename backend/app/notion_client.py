@@ -24,8 +24,11 @@ class NotionWrapper:
         # Use only the confirmed properties from your schema
         props: Dict[str, Any] = {
             "Name": {"title": [{"text": {"content": profile.name or ""}}]},
-            "Company": self._multi_select([profile.currentCompany] if profile.currentCompany else []),
+            "Company": self._multi_select(profile.companies),
             "Role": {"rich_text": [{"text": {"content": profile.role or ""}}]},
+            "School(s)": self._multi_select(profile.schools),
+            "Highest Degree": {"select": {"name": profile.highestDegree} if profile.highestDegree else None},
+            "Field": {"select": {"name": profile.field[0]} if profile.field else None},
             "LinkedIn URL": {"url": str(profile.linkedinUrl) if profile.linkedinUrl else None},
             "Date Contacted": {"date": {"start": today}},
             "Last Interaction Date": {"date": {"start": today}},
@@ -58,11 +61,63 @@ class NotionWrapper:
                 "name": profile.name,
                 "role": profile.role,
                 "currentCompany": profile.currentCompany,
+                "companies": profile.companies,
                 "highestDegree": profile.highestDegree,
+                "field": profile.field,
                 "schools": profile.schools,
                 "location": profile.location,
                 "linkedinUrl": str(profile.linkedinUrl) if profile.linkedinUrl else None,
             },
+        }
+
+    def find_profile_by_linkedin_url(self, linkedin_url: str) -> Optional[str]:
+        """Find an existing profile page by LinkedIn URL. Returns page_id if found."""
+        try:
+            response = self.client.databases.query(
+                database_id=self.database_id,
+                filter={
+                    "property": "LinkedIn URL",
+                    "url": {"equals": linkedin_url}
+                }
+            )
+            
+            if response["results"]:
+                return response["results"][0]["id"]
+            return None
+        except Exception:
+            return None
+    
+    def update_profile_page_with_message(
+        self,
+        page_id: str,
+        message_type: str,
+        message_content: str,
+        subject: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Update an existing profile page with generated message."""
+        today = dt.date.today().isoformat()
+        
+        props: Dict[str, Any] = {
+            "Last Interaction Date": {"date": {"start": today}},
+            "Status": {"status": {"name": "Contacted"}}
+        }
+        
+        if message_type == "linkedin":
+            props["LinkedIn Message"] = {"rich_text": [{"text": {"content": message_content}}]}
+        elif message_type == "email":
+            props["Email Message"] = {"rich_text": [{"text": {"content": message_content}}]}
+            if subject:
+                props["Email Subject"] = {"rich_text": [{"text": {"content": subject}}]}
+        
+        response = self.client.pages.update(
+            page_id=page_id,
+            properties=props
+        )
+        
+        return {
+            "pageId": response["id"],
+            "url": response.get("url"),
+            "updated": True
         }
 
     def _multi_select(self, items: List[str]) -> Dict[str, Any]:

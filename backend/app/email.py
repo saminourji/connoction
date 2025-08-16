@@ -1,19 +1,255 @@
 from __future__ import annotations
 import asyncio
 import os
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 import httpx
 from openai import OpenAI
 
 from .schemas import Draft, Profile
+import json
+
+
+async def parse_linkedin_profile_with_llm(html_content: str, linkedin_url: str) -> Optional[Profile]:
+    """Use LLM to parse LinkedIn profile HTML and extract structured data."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🔍 Starting LLM profile parsing for URL: {linkedin_url}")
+    logger.debug(f"📄 Original HTML content length: {len(html_content)} characters")
+    
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        logger.error("❌ OPENAI_API_KEY not found in environment")
+        return None
+    
+    client = OpenAI(api_key=api_key)
+    
+    # Strip HTML tags and clean content
+    import re
+    from html import unescape
+    
+    # Remove script and style tags completely
+    text_content = re.sub(r'<script[^>]*>.*?</script>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+    text_content = re.sub(r'<style[^>]*>.*?</style>', '', text_content, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Strip all HTML tags
+    text_content = re.sub(r'<[^>]+>', ' ', text_content)
+    
+    # Clean up whitespace and decode HTML entities
+    text_content = unescape(text_content)
+    text_content = re.sub(r'\s+', ' ', text_content).strip()
+    
+    logger.debug(f"🧹 Cleaned text content length: {len(text_content)} characters")
+    logger.debug(f"📝 First 500 chars of cleaned content: {text_content[:500]}...")
+    
+    # Truncate if too long (keep within reasonable token limits)
+    if len(text_content) > 25000:
+        text_content = text_content[:25000] + "..."
+        logger.info(f"✂️ Truncated content to 25000 characters")
+    
+    system_prompt = """You are a LinkedIn profile parser. Extract structured information from the provided LinkedIn profile text content.
+
+Extract the following information and return it as valid JSON:
+
+{
+  "name": "Full name of the person",
+  "role": "Current job title/role", 
+  "currentCompany": "Current company name",
+  "companies": ["Array of company names from work experience, excluding education institutions"],
+  "highestDegree": "Highest degree (PhD, Master's, or Bachelor's)",
+  "schools": ["Array of educational institutions"],
+  "location": "Geographic location",
+  "field": "Field classification - see rules below"
+}
+
+FIELD CLASSIFICATION RULES:
+Classify the person's field based on their role, experience, and background into ONE of these formats:
+
+INDUSTRY ROLES (use format "industry - {category}"):
+- "industry - SWE" for Software Engineers/Developers (general software engineering)
+- "industry - PM" for Product Managers
+- "industry - AI/ML" for AI/ML Engineers, Data Scientists, ML Engineers
+- "industry - Other" for other industry roles not covered above
+
+RESEARCH ROLES (use format "research - {specific field}"):
+- "research - Computer Science" for CS researchers, PhD students in CS
+- "research - Machine Learning" for ML/AI researchers
+- "research - Physics" for physics researchers
+- "research - Biology" for biology/biotech researchers
+- "research - [specific field]" for other research areas (be specific about the field)
+
+IMPORTANT RULES:
+- Extract only factual information present in the content
+- For companies: exclude universities, schools, colleges from the companies array
+- For highestDegree: choose the highest from PhD > Master's > Bachelor's hierarchy
+- For field: Choose the MOST SPECIFIC category based on their current role and background
+- If someone works in industry but has research background, classify by their current role
+- If information is not available, use null for strings or [] for arrays
+- Return valid JSON only, no explanations"""
+
+    user_prompt = f"""Parse this LinkedIn profile content and extract the structured information:
+
+LinkedIn URL: {linkedin_url}
+
+Profile Content:
+{text_content}
+
+Return the extracted profile data as JSON."""
+
+    try:
+        logger.info("🤖 Sending request to GPT-4o-mini...")
+        logger.debug(f"📤 System prompt: {system_prompt[:200]}...")
+        logger.debug(f"📤 User prompt length: {len(user_prompt)} characters")
+        
+        response = await asyncio.to_thread(
+            client.chat.completions.create,
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+            max_tokens=800
+        )
+        
+        content = response.choices[0].message.content or ""
+        logger.info(f"📥 GPT-4o-mini raw response: {content}")
+        
+        try:
+            result = json.loads(content)
+            logger.info(f"✅ Successfully parsed JSON response: {result}")
+        except json.JSONDecodeError as json_err:
+            logger.error(f"❌ Failed to parse JSON response: {json_err}")
+            logger.error(f"Raw content: {content}")
+            return None
+        
+        # Create Profile object with extracted data
+        profile = Profile(
+            name=result.get("name"),
+            role=result.get("role"),
+            currentCompany=result.get("currentCompany"),
+            companies=result.get("companies", []),
+            highestDegree=result.get("highestDegree"),
+            field=result.get("field"),  # Now extracted directly by LLM
+            schools=result.get("schools", []),
+            location=result.get("location"),
+            linkedinUrl=linkedin_url
+        )
+        
+        logger.info(f"🎯 Created Profile object:")
+        logger.info(f"   Name: {profile.name}")
+        logger.info(f"   Role: {profile.role}")
+        logger.info(f"   Current Company: {profile.currentCompany}")
+        logger.info(f"   Companies: {profile.companies}")
+        logger.info(f"   Location: {profile.location}")
+        logger.info(f"   Schools: {profile.schools}")
+        logger.info(f"   Highest Degree: {profile.highestDegree}")
+        
+        return profile
+        
+    except Exception as e:
+        logger.error(f"❌ LLM profile parsing error: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        return None
+
+
+async def classify_field_with_llm(profile: Profile) -> Optional[str]:
+    """Use LLM to classify the person's field based on their profile information."""
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    
+    client = OpenAI(api_key=api_key)
+    
+    # Build profile context for classification
+    profile_info = []
+    if profile.role:
+        profile_info.append(f"Current Role: {profile.role}")
+    if profile.companies:
+        profile_info.append(f"Companies: {', '.join(profile.companies)}")
+    if profile.schools:
+        profile_info.append(f"Education: {', '.join(profile.schools)}")
+    if profile.highestDegree:
+        profile_info.append(f"Degree: {profile.highestDegree}")
+    
+    if not profile_info:
+        return None
+    
+    profile_context = "\n".join(profile_info)
+    
+    system_prompt = """You are a career field classifier. Based on the profile information provided, classify the person into the MOST APPROPRIATE category using the new field format:
+
+INDUSTRY ROLES (use format "industry - {category}"):
+- "industry - SWE" for Software Engineers/Developers (general software engineering)
+- "industry - PM" for Product Managers
+- "industry - AI/ML" for AI/ML Engineers, Data Scientists, ML Engineers
+- "industry - Other" for other industry roles not covered above
+
+RESEARCH ROLES (use format "research - {specific field}"):
+- "research - Computer Science" for CS researchers, PhD students in CS
+- "research - Machine Learning" for ML/AI researchers
+- "research - Physics" for physics researchers
+- "research - Biology" for biology/biotech researchers
+- "research - [specific field]" for other research areas (be specific about the field)
+
+IMPORTANT: 
+- Choose the MOST SPECIFIC category based on their current role and background
+- If someone works in industry but has research background, classify by their current role
+- If someone could fit multiple categories, choose the most specific or current one
+
+Respond with valid JSON in this exact format:
+{"field": "category"}"""
+
+    user_prompt = f"""Classify this person's field based on their profile:
+
+{profile_context}
+
+Respond with JSON only."""
+
+    try:
+        response = await asyncio.to_thread(
+            client.chat.completions.create,
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+            max_tokens=50
+        )
+        
+        content = response.choices[0].message.content or ""
+        result = json.loads(content)
+        field = result.get("field")
+        
+        # Validate that the field follows the new format
+        if field and (field.startswith("industry - ") or field.startswith("research - ")):
+            return field
+        
+        return None
+        
+    except Exception as e:
+        print(f"Field classification error: {e}")
+        return None
 
 
 async def maybe_generate_draft(profile: Profile, ask: str, message_type: str = "email") -> tuple[Optional[Draft], Optional[str], Optional[str]]:
     provider_env = os.getenv("EMAIL_PROVIDER", "").lower()
     api_key = os.getenv("OPENAI_API_KEY")
+    
+    print(f"DEBUG: EMAIL_PROVIDER = '{provider_env}'")
+    print(f"DEBUG: OPENAI_API_KEY exists = {bool(api_key)}")
+    print(f"DEBUG: OPENAI_API_KEY length = {len(api_key) if api_key else 0}")
 
     if provider_env != "openai" or not api_key:
+        if provider_env != "openai":
+            return None, None, f"EMAIL_PROVIDER must be set to 'openai', currently: '{provider_env}'"
+        if not api_key:
+            return None, None, "OPENAI_API_KEY is missing or empty"
         return None, None, "OpenAI not configured"
 
     try:
@@ -36,6 +272,8 @@ async def _generate_with_openai(profile: Profile, ask: str, api_key: str, messag
         profile_context += f"\nEducation: {', '.join(profile.schools)}"
     if profile.highestDegree:
         profile_context += f"\nDegree: {profile.highestDegree}"
+    if profile.field:
+        profile_context += f"\nField: {profile.field}"
     if profile.location:
         profile_context += f"\nLocation: {profile.location}"
     
@@ -48,14 +286,7 @@ Example 1: "Hey Hans, Really cool background in NLP/Computational Social Science
 
 Example 2: "Hey Aaquib, Really cool background in ML Research and SWE — would love to hear about your experience in industry research, how that compares to academia + your take on PhDs. I'm exploring different paths for post-grad after getting a taste of big tech SWE, so your insights would be super helpful."
 
-Key elements:
-- Start with "Hey [Name],"
-- Compliment their background specifically
-- Connect to your situation/interests
-- Make a specific ask
-- Explain why their insights would be valuable
-- Keep it under 300 characters total
-- Be conversational and warm"""
+When adapting these examples to the specific context, edit the example messages as little as possible while making them relevant to the person's background."""
 
         user_prompt = f"""Write a LinkedIn message for this person:
 
@@ -84,13 +315,7 @@ I completely understand if you're too busy to respond; even a short reply (or a 
 
 All the best,"
 
-Key elements:
-- Acknowledge they're busy
-- Brief personal context
-- Specific ask related to their background
-- Explain why their perspective is valuable
-- Respectful closing that gives them an out
-- Professional but warm tone"""
+When adapting this example to the specific context, edit the example email as little as possible while making it relevant to the person's background."""
 
         user_prompt = f"""Write a professional outreach email for this person:
 
@@ -102,7 +327,7 @@ Generate both a subject line and email body. Make it personal and specific to th
 
     response = await asyncio.to_thread(
         client.chat.completions.create,
-        model="gpt-4",
+        model="gpt-5",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}

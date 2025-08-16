@@ -42,82 +42,192 @@ function setButtonLoading(buttonId: string, loading: boolean, originalText?: str
   }
 }
 
-// Improved LinkedIn profile extraction
+// Extract LinkedIn HTML content for LLM parsing
 function extractLinkedInProfile(): any {
-  const profile: any = {};
+  console.log('🔍 Starting comprehensive LinkedIn profile extraction...');
   
-  // Get LinkedIn URL
-  profile.linkedinUrl = window.location.href;
-  
-  // Extract name - look for main h1 with specific classes
-  const nameEl = document.querySelector('h1.inline.t-24.v-align-middle.break-words, h1[class*="inline"][class*="t-24"]');
-  profile.name = nameEl?.textContent?.trim() || null;
-  
-  // Extract headline/role - look for text after name in top card
-  const headlineEl = document.querySelector('.text-body-medium.break-words, [data-generated-suggestion-target] .text-body-medium');
-  const headline = headlineEl?.textContent?.trim();
-  if (headline) {
-    // Parse "Role @ Company" format
-    const match = headline.match(/^(.+?)\s*@\s*(.+)$/);
-    if (match) {
-      profile.role = match[1].trim();
-      profile.currentCompany = match[2].trim();
-    } else {
-      profile.role = headline;
-    }
+  // Comprehensive scrolling to trigger LinkedIn's lazy loading
+  function scrollAndWait(delay: number = 1000): Promise<void> {
+    return new Promise(resolve => {
+      // Scroll to different positions to trigger content loading
+      const positions = [0, 0.25, 0.5, 0.75, 1.0];
+      let currentPosition = 0;
+      
+      const scrollStep = () => {
+        if (currentPosition < positions.length) {
+          const scrollY = document.body.scrollHeight * positions[currentPosition];
+          window.scrollTo(0, scrollY);
+          console.log(`📜 Scrolling to position ${positions[currentPosition] * 100}%`);
+          currentPosition++;
+          setTimeout(scrollStep, delay / positions.length);
+        } else {
+          // Final scroll to top
+          window.scrollTo(0, 0);
+          setTimeout(resolve, 500);
+        }
+      };
+      
+      scrollStep();
+    });
   }
   
-  // Extract location
-  const locationEl = document.querySelector('.text-body-small.inline.t-black--light.break-words, span[class*="text-body-small"][class*="t-black--light"]');
-  profile.location = locationEl?.textContent?.trim() || null;
-  
-  // Extract current company from experience if not found in headline
-  if (!profile.currentCompany) {
-    const firstExpEl = document.querySelector('[data-view-name="profile-component-entity"] .t-bold span[aria-hidden="true"]');
-    const companyFromExp = firstExpEl?.textContent?.trim();
-    if (companyFromExp && !companyFromExp.includes("University") && !companyFromExp.includes("School")) {
-      profile.currentCompany = companyFromExp;
-    }
+  // Click "Show more" buttons to expand sections
+  function expandSections() {
+    const expandButtons = [
+      'button[aria-expanded="false"]',
+      '.pv-profile-section__see-more-inline',
+      '.inline-show-more-text__button',
+      '.show-more-less-html__button--more',
+      '[data-control-name="contact_see_more"]',
+      '.pv-entity__summary .lt-line-clamp__more'
+    ];
+    
+    let expandedCount = 0;
+    expandButtons.forEach(selector => {
+      const buttons = document.querySelectorAll(selector);
+      buttons.forEach(button => {
+        if (button instanceof HTMLElement && button.offsetParent !== null) {
+          console.log(`🔽 Clicking expand button: ${selector}`);
+          button.click();
+          expandedCount++;
+        }
+      });
+    });
+    
+    console.log(`📋 Expanded ${expandedCount} sections`);
+    return expandedCount;
   }
   
-  // Extract role from first experience if not found in headline
-  if (!profile.role) {
-    const roleEl = document.querySelector('[data-view-name="profile-component-entity"] .t-bold span[aria-hidden="true"]');
-    profile.role = roleEl?.textContent?.trim() || null;
-  }
-  
-  // Extract education/schools
-  profile.schools = [];
-  const educationEls = document.querySelectorAll('[data-view-name="profile-component-entity"] .t-bold span[aria-hidden="true"]');
-  educationEls.forEach(el => {
-    const text = el.textContent?.trim();
-    if (text && (text.includes("University") || text.includes("School") || text.includes("College") || text.includes("Institute"))) {
-      if (!profile.schools.includes(text)) {
-        profile.schools.push(text);
+  // Extract visible text content
+  function getVisibleText(element: Element): string {
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: function(node) {
+          const parent = node.parentElement;
+          if (!parent) return NodeFilter.FILTER_REJECT;
+          
+          // Skip hidden elements, scripts, styles, etc.
+          const style = window.getComputedStyle(parent);
+          if (style.display === 'none' || 
+              style.visibility === 'hidden' || 
+              style.opacity === '0' ||
+              parent.tagName === 'SCRIPT' || 
+              parent.tagName === 'STYLE' ||
+              parent.tagName === 'NOSCRIPT') {
+            return NodeFilter.FILTER_REJECT;
+          }
+          
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      }
+    );
+    
+    let textContent = '';
+    let node;
+    while (node = walker.nextNode()) {
+      const text = node.textContent?.trim();
+      if (text && text.length > 1) {
+        textContent += text + ' ';
       }
     }
-  });
-  
-  // Extract highest degree - look for degree info in education sections
-  const degreeTexts = document.querySelectorAll('.t-14.t-normal span[aria-hidden="true"]');
-  const degrees = [];
-  degreeTexts.forEach(el => {
-    const text = el.textContent?.trim();
-    if (text && (text.includes("BS") || text.includes("MS") || text.includes("PhD") || text.includes("Bachelor") || text.includes("Master") || text.includes("Doctor"))) {
-      degrees.push(text);
-    }
-  });
-  
-  if (degrees.length > 0) {
-    // Prioritize higher degrees
-    const highestDegree = degrees.find(d => d.includes("PhD") || d.includes("Doctor")) ||
-                         degrees.find(d => d.includes("MS") || d.includes("Master")) ||
-                         degrees.find(d => d.includes("BS") || d.includes("Bachelor")) ||
-                         degrees[0];
-    profile.highestDegree = highestDegree;
+    
+    return textContent.trim();
   }
   
-  return profile;
+  // Wait for page to be fully loaded and expand sections
+  return new Promise((resolve) => {
+    setTimeout(async () => {
+      console.log('⏳ Starting comprehensive extraction process...');
+      
+      // Step 1: Scroll through entire page to load content
+      await scrollAndWait(2000);
+      
+      // Step 2: Expand collapsed sections
+      const expandedSections = expandSections();
+      
+      // Step 3: Wait for expanded content to load
+      if (expandedSections > 0) {
+        await new Promise(r => setTimeout(r, 1500));
+      }
+      
+      // Step 4: Extract from multiple areas and combine
+      const contentSources = [
+        // Main content areas
+        'main[role="main"]',
+        '.scaffold-layout__main',
+        '.scaffold-layout-container__content',
+        
+        // Profile sections
+        '.pv-top-card',
+        '.pv-profile-section',
+        '.artdeco-card',
+        
+        // Specific sections
+        '.pv-about-section',
+        '.pv-experience-section', 
+        '.pv-education-section',
+        '.pv-skill-categories-section',
+        '.pv-profile-section--education',
+        '.pv-profile-section--experience',
+        
+        // Modern LinkedIn selectors
+        '[data-view-name="profile-component-entity"]',
+        '.pvs-list',
+        '.pvs-entity'
+      ];
+      
+      let allTextContent = '';
+      let extractedSections = 0;
+      
+      contentSources.forEach((selector, index) => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach((element, elemIndex) => {
+          const visibleText = getVisibleText(element);
+          if (visibleText.length > 50) { // Lower threshold to catch more content
+            allTextContent += `\n--- Section ${index}-${elemIndex} (${selector}) ---\n`;
+            allTextContent += visibleText + '\n';
+            extractedSections++;
+          }
+        });
+      });
+      
+      console.log(`✅ Extracted content from ${extractedSections} sections`);
+      console.log(`📏 Total content length: ${allTextContent.length} characters`);
+      
+      // Fallback: get all visible text from body if we didn't get much
+      if (allTextContent.length < 2000) {
+        console.log('⚠️ Low content extracted, falling back to full body text');
+        const bodyElement = document.querySelector('body');
+        if (bodyElement) {
+          allTextContent = getVisibleText(bodyElement);
+        }
+      }
+      
+      // Final fallback
+      if (!allTextContent || allTextContent.length < 500) {
+        console.log('⚠️ Very low content, using innerText fallback');
+        allTextContent = document.body.innerText || document.body.textContent || '';
+      }
+      
+      console.log(`🎯 Final content length: ${allTextContent.length} characters`);
+      
+      resolve({
+        linkedinUrl: window.location.href,
+        htmlContent: allTextContent,
+        // All other fields will be null - LLM will extract everything
+        name: null,
+        role: null,
+        currentCompany: null,
+        companies: [],
+        highestDegree: null,
+        field: null,
+        schools: [],
+        location: null
+      });
+    }, 500); // Initial delay to let page settle
+  });
 }
 
 async function extractProfile(): Promise<any> {
@@ -127,13 +237,14 @@ async function extractProfile(): Promise<any> {
   if (!tab.url?.includes("linkedin.com")) {
     throw new Error("Please navigate to a LinkedIn profile page");
   }
-  
+
   const [result] = await chrome.scripting.executeScript({
     target: { tabId: tab.id! },
     func: extractLinkedInProfile,
   });
-  
-  extractedProfile = result.result;
+
+  // The function now returns a Promise, so we need to await it
+  extractedProfile = await result.result;
   return extractedProfile;
 }
 
@@ -147,8 +258,9 @@ async function handleAddToNotion() {
     const profile = await extractProfile();
     console.log("Extracted profile:", profile);
     
-    if (!profile.name) {
-      throw new Error("Could not extract profile name. Make sure you're on a LinkedIn profile page.");
+    // Skip name validation since LLM will extract it from HTML
+    if (!profile.htmlContent) {
+      throw new Error("Could not extract page content. Make sure you're on a LinkedIn profile page.");
     }
     
     const linkedinReached = (document.getElementById("linkedinReached") as HTMLInputElement).checked;
@@ -190,20 +302,21 @@ async function handleAddToNotion() {
     const data = await response.json();
     console.log("Backend response:", data);
     
-    // Show Notion result
+    // Show Notion result using data from backend response
     const notionContent = document.getElementById("notionContent")!;
+    const savedFields = data.notion?.savedFields || {};
     notionContent.innerHTML = `
-      <p><strong>${profile.name}</strong> saved successfully!</p>
-      <p>📍 ${profile.location || 'Location not found'}</p>
-      <p>💼 ${profile.role || 'Role not found'} ${profile.currentCompany ? `at ${profile.currentCompany}` : ''}</p>
+      <p><strong>${savedFields.name || 'Profile'}</strong> saved successfully!</p>
+      <p>📍 ${savedFields.location || 'Location not found'}</p>
+      <p>💼 ${savedFields.role || 'Role not found'} ${savedFields.currentCompany ? `at ${savedFields.currentCompany}` : ''}</p>
       ${data.notion?.url ? `<a href="${data.notion.url}" target="_blank" class="notion-link">🔗 Open in Notion</a>` : ''}
     `;
     
     showSection("notionResult");
-    setStatus("✅ Successfully saved to Notion!", 'success');
-    
-    // Show success feedback on button
-    setButtonLoading(buttonId, false, "✅ Saved!");
+            setStatus("Successfully saved to Notion!", 'success');
+        
+        // Show success feedback on button
+        setButtonLoading(buttonId, false, "Saved!");
     setTimeout(() => {
       const btn = document.getElementById(buttonId) as HTMLButtonElement;
       btn.textContent = "Add Profile to Notion";
@@ -211,11 +324,11 @@ async function handleAddToNotion() {
     
     setTimeout(hideStatus, 4000);
     
-  } catch (error) {
-    console.error("Add to Notion error:", error);
-    setStatus(`❌ Error: ${error}`, 'error');
-    setButtonLoading(buttonId, false);
-  }
+      } catch (error) {
+      console.error("Add to Notion error:", error);
+      setStatus(`Error: ${error}`, 'error');
+      setButtonLoading(buttonId, false);
+    }
 }
 
 async function handleGenerateMessage(type: 'linkedin' | 'email') {
@@ -227,8 +340,9 @@ async function handleGenerateMessage(type: 'linkedin' | 'email') {
     
     const profile = await extractProfile();
     
-    if (!profile.name) {
-      throw new Error("Could not extract profile name. Make sure you're on a LinkedIn profile page.");
+    // Skip name validation since LLM will extract it from HTML
+    if (!profile.htmlContent) {
+      throw new Error("Could not extract page content. Make sure you're on a LinkedIn profile page.");
     }
     
     const askTextarea = document.getElementById(type === 'linkedin' ? 'linkedinAsk' : 'emailAsk') as HTMLTextAreaElement;
@@ -267,6 +381,11 @@ async function handleGenerateMessage(type: 'linkedin' | 'email') {
       throw new Error("No draft generated. Make sure OpenAI is configured in your .env file.");
     }
     
+    // Check if Notion entry was updated
+    if (data.notion && data.notion.savedFields?.updated_with_message) {
+      setStatus(`${type === 'linkedin' ? 'LinkedIn' : 'Email'} message generated and Notion entry updated!`, 'success');
+    }
+    
     // Show draft result
     const subjectSection = document.getElementById("subjectSection")!;
     const draftSubject = document.getElementById("draftSubject") as HTMLInputElement;
@@ -282,10 +401,14 @@ async function handleGenerateMessage(type: 'linkedin' | 'email') {
     draftBody.value = data.draft.body;
     
     showSection("draftResult");
-    setStatus(`✅ ${type === 'linkedin' ? 'LinkedIn' : 'Email'} message generated successfully!`, 'success');
+    
+    // Only show the basic success message if we didn't already show the Notion update message
+    if (!(data.notion && data.notion.savedFields?.updated_with_message)) {
+      setStatus(`${type === 'linkedin' ? 'LinkedIn' : 'Email'} message generated successfully!`, 'success');
+    }
     
     // Show success feedback on button
-    setButtonLoading(buttonId, false, "✅ Generated!");
+    setButtonLoading(buttonId, false, "Generated!");
     setTimeout(() => {
       const btn = document.getElementById(buttonId) as HTMLButtonElement;
       btn.textContent = type === 'linkedin' ? "Generate LinkedIn Draft" : "Generate Email Draft";
@@ -295,7 +418,7 @@ async function handleGenerateMessage(type: 'linkedin' | 'email') {
     
   } catch (error) {
     console.error("Generate message error:", error);
-    setStatus(`❌ Error: ${error}`, 'error');
+    setStatus(`Error: ${error}`, 'error');
     setButtonLoading(buttonId, false);
   }
 }
@@ -309,18 +432,18 @@ function copyDraft() {
     fullText = `Subject: ${subjectEl.value}\n\n${bodyEl.value}`;
   }
   
-  navigator.clipboard.writeText(fullText).then(() => {
-    const btn = document.getElementById("copyBtn") as HTMLButtonElement;
-    const originalText = btn.textContent;
-    btn.textContent = "✅ Copied!";
-    btn.style.background = "#059669";
-    setTimeout(() => { 
-      btn.textContent = originalText;
-      btn.style.background = "#10b981";
-    }, 2000);
-  }).catch(() => {
-    setStatus("❌ Failed to copy to clipboard", 'error');
-  });
+      navigator.clipboard.writeText(fullText).then(() => {
+      const btn = document.getElementById("copyBtn") as HTMLButtonElement;
+      const originalText = btn.textContent;
+      btn.textContent = "Copied!";
+      btn.style.background = "#059669";
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.style.background = "#10b981";
+      }, 2000);
+    }).catch(() => {
+      setStatus("Failed to copy to clipboard", 'error');
+    });
 }
 
 function setupQuickOptions() {

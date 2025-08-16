@@ -13,13 +13,17 @@ def derive_field(role: Optional[str]) -> Optional[str]:
     if not role:
         return None
     r = role.lower()
-    if any(k in r for k in ["software", "engineer", "swe", "developer", "ml", "ai"]):
-        return "Industry - SWE"
+    if any(k in r for k in ["software", "engineer", "swe", "developer"]):
+        if any(k in r for k in ["ml", "ai", "machine learning", "artificial intelligence"]):
+            return "AI SWE"
+        return "SWE"
     if any(k in r for k in ["product manager", "pm", "program manager", "product "]):
-        return "Industry - PM"
+        return "PM"
+    if any(k in r for k in ["machine learning", "ml", "data science", "mle"]):
+        return "MLE"
     if any(k in r for k in ["research", "phd", "scientist"]):
         return "Research"
-    return "Industry - Research"
+    return "Research"
 
 
 def pick_highest_degree(degrees: List[str]) -> Optional[str]:
