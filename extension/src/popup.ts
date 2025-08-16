@@ -71,32 +71,7 @@ function extractLinkedInProfile(): any {
     });
   }
   
-  // Click "Show more" buttons to expand sections
-  function expandSections() {
-    const expandButtons = [
-      'button[aria-expanded="false"]',
-      '.pv-profile-section__see-more-inline',
-      '.inline-show-more-text__button',
-      '.show-more-less-html__button--more',
-      '[data-control-name="contact_see_more"]',
-      '.pv-entity__summary .lt-line-clamp__more'
-    ];
-    
-    let expandedCount = 0;
-    expandButtons.forEach(selector => {
-      const buttons = document.querySelectorAll(selector);
-      buttons.forEach(button => {
-        if (button instanceof HTMLElement && button.offsetParent !== null) {
-          console.log(`🔽 Clicking expand button: ${selector}`);
-          button.click();
-          expandedCount++;
-        }
-      });
-    });
-    
-    console.log(`📋 Expanded ${expandedCount} sections`);
-    return expandedCount;
-  }
+  // Note: Removed button clicking functionality - only extract visible text as-is
   
   // Extract visible text content
   function getVisibleText(element: Element): string {
@@ -136,7 +111,7 @@ function extractLinkedInProfile(): any {
     return textContent.trim();
   }
   
-  // Wait for page to be fully loaded and expand sections
+  // Wait for page to be fully loaded and extract visible content
   return new Promise((resolve) => {
     setTimeout(async () => {
       console.log('⏳ Starting comprehensive extraction process...');
@@ -144,15 +119,7 @@ function extractLinkedInProfile(): any {
       // Step 1: Scroll through entire page to load content
       await scrollAndWait(2000);
       
-      // Step 2: Expand collapsed sections
-      const expandedSections = expandSections();
-      
-      // Step 3: Wait for expanded content to load
-      if (expandedSections > 0) {
-        await new Promise(r => setTimeout(r, 1500));
-      }
-      
-      // Step 4: Extract from multiple areas and combine
+      // Step 2: Extract from multiple areas and combine (no button clicking)
       const contentSources = [
         // Main content areas
         'main[role="main"]',
@@ -193,12 +160,12 @@ function extractLinkedInProfile(): any {
         });
       });
       
-      console.log(`✅ Extracted content from ${extractedSections} sections`);
+      console.log(`✅ Extracted visible content from ${extractedSections} sections (no button clicking)`);
       console.log(`📏 Total content length: ${allTextContent.length} characters`);
       
       // Fallback: get all visible text from body if we didn't get much
       if (allTextContent.length < 2000) {
-        console.log('⚠️ Low content extracted, falling back to full body text');
+        console.log('⚠️ Low content extracted, falling back to full body visible text');
         const bodyElement = document.querySelector('body');
         if (bodyElement) {
           allTextContent = getVisibleText(bodyElement);
@@ -237,12 +204,12 @@ async function extractProfile(): Promise<any> {
   if (!tab.url?.includes("linkedin.com")) {
     throw new Error("Please navigate to a LinkedIn profile page");
   }
-
+  
   const [result] = await chrome.scripting.executeScript({
     target: { tabId: tab.id! },
     func: extractLinkedInProfile,
   });
-
+  
   // The function now returns a Promise, so we need to await it
   extractedProfile = await result.result;
   return extractedProfile;

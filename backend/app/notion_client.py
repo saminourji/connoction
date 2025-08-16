@@ -24,22 +24,25 @@ class NotionWrapper:
         # Use only the confirmed properties from your schema
         props: Dict[str, Any] = {
             "Name": {"title": [{"text": {"content": profile.name or ""}}]},
-            "Company": self._multi_select(profile.companies),
+            "Company": {"select": {"name": profile.currentCompany} if profile.currentCompany else None},  # Single select for current company
+            "Previous Companies": self._multi_select([c for c in profile.companies if c != profile.currentCompany]),  # Multiselect for previous companies
             "Role": {"rich_text": [{"text": {"content": profile.role or ""}}]},
             "School(s)": self._multi_select(profile.schools),
             "Highest Degree": {"select": {"name": profile.highestDegree} if profile.highestDegree else None},
-            "Field": {"select": {"name": profile.field[0]} if profile.field else None},
+            "Field": {"select": {"name": profile.field} if profile.field else None},  # Fixed field extraction
             "LinkedIn URL": {"url": str(profile.linkedinUrl) if profile.linkedinUrl else None},
             "Date Contacted": {"date": {"start": today}},
             "Last Interaction Date": {"date": {"start": today}},
         }
 
-        # Handle messages
+        # Handle messages and outreach tracking
         if linkedin_message:
             props["LinkedIn Message"] = {"rich_text": [{"text": {"content": linkedin_message}}]}
+            props["LinkedIn Reached Out"] = {"checkbox": True}  # Track LinkedIn outreach
 
         if email_message:
             props["Email Message"] = {"rich_text": [{"text": {"content": email_message}}]}
+            props["Email Reached Out"] = {"checkbox": True}  # Track Email outreach
 
         # Set status based on whether any checkboxes were selected
         if linkedin_message or email_message:
@@ -104,8 +107,10 @@ class NotionWrapper:
         
         if message_type == "linkedin":
             props["LinkedIn Message"] = {"rich_text": [{"text": {"content": message_content}}]}
+            props["LinkedIn Reached Out"] = {"checkbox": True}
         elif message_type == "email":
             props["Email Message"] = {"rich_text": [{"text": {"content": message_content}}]}
+            props["Email Reached Out"] = {"checkbox": True}
             if subject:
                 props["Email Subject"] = {"rich_text": [{"text": {"content": subject}}]}
         

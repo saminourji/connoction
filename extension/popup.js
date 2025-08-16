@@ -58,29 +58,6 @@
         scrollStep();
       });
     }
-    function expandSections() {
-      const expandButtons = [
-        'button[aria-expanded="false"]',
-        ".pv-profile-section__see-more-inline",
-        ".inline-show-more-text__button",
-        ".show-more-less-html__button--more",
-        '[data-control-name="contact_see_more"]',
-        ".pv-entity__summary .lt-line-clamp__more"
-      ];
-      let expandedCount = 0;
-      expandButtons.forEach((selector) => {
-        const buttons = document.querySelectorAll(selector);
-        buttons.forEach((button) => {
-          if (button instanceof HTMLElement && button.offsetParent !== null) {
-            console.log(`\u{1F53D} Clicking expand button: ${selector}`);
-            button.click();
-            expandedCount++;
-          }
-        });
-      });
-      console.log(`\u{1F4CB} Expanded ${expandedCount} sections`);
-      return expandedCount;
-    }
     function getVisibleText(element) {
       const walker = document.createTreeWalker(
         element,
@@ -111,10 +88,6 @@
       setTimeout(async () => {
         console.log("\u23F3 Starting comprehensive extraction process...");
         await scrollAndWait(2e3);
-        const expandedSections = expandSections();
-        if (expandedSections > 0) {
-          await new Promise((r) => setTimeout(r, 1500));
-        }
         const contentSources = [
           // Main content areas
           'main[role="main"]',
@@ -151,10 +124,10 @@
             }
           });
         });
-        console.log(`\u2705 Extracted content from ${extractedSections} sections`);
+        console.log(`\u2705 Extracted visible content from ${extractedSections} sections (no button clicking)`);
         console.log(`\u{1F4CF} Total content length: ${allTextContent.length} characters`);
         if (allTextContent.length < 2e3) {
-          console.log("\u26A0\uFE0F Low content extracted, falling back to full body text");
+          console.log("\u26A0\uFE0F Low content extracted, falling back to full body visible text");
           const bodyElement = document.querySelector("body");
           if (bodyElement) {
             allTextContent = getVisibleText(bodyElement);

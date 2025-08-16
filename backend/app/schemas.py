@@ -3,6 +3,12 @@ from typing import List, Optional, Literal
 from pydantic import BaseModel, HttpUrl, Field
 
 
+class ExperienceDetail(BaseModel):
+    company: str
+    title: str
+    description: Optional[str] = None
+
+
 class Profile(BaseModel):
     name: Optional[str] = None
     role: Optional[str] = None
@@ -15,6 +21,11 @@ class Profile(BaseModel):
     linkedinUrl: Optional[HttpUrl] = None
     # Optional HTML content for LLM parsing
     htmlContent: Optional[str] = None
+    
+    # Richer profile data for text generation (not saved to Notion)
+    bio: Optional[str] = None
+    headline: Optional[str] = None
+    experience_details: List[ExperienceDetail] = Field(default_factory=list)
 
 
 class Draft(BaseModel):

@@ -6,7 +6,8 @@ from typing import Optional, Tuple, List
 import httpx
 from openai import OpenAI
 
-from .schemas import Draft, Profile
+from .schemas import Draft, Profile, ExperienceDetail
+from . import config
 import json
 
 
@@ -18,7 +19,7 @@ async def parse_linkedin_profile_with_llm(html_content: str, linkedin_url: str) 
     logger.info(f"🔍 Starting LLM profile parsing for URL: {linkedin_url}")
     logger.debug(f"📄 Original HTML content length: {len(html_content)} characters")
     
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = config.OPENAI_API_KEY
     if not api_key:
         logger.error("❌ OPENAI_API_KEY not found in environment")
         return None
@@ -60,7 +61,16 @@ Extract the following information and return it as valid JSON:
   "highestDegree": "Highest degree (PhD, Master's, or Bachelor's)",
   "schools": ["Array of educational institutions"],
   "location": "Geographic location",
-  "field": "Field classification - see rules below"
+  "field": "Field classification - see rules below",
+  "bio": "The About section content - their personal/professional summary",
+  "headline": "The short tagline/headline under their name",
+  "experience_details": [
+    {
+      "company": "Company name",
+      "title": "Job title/role at this company", 
+      "description": "Job description/responsibilities (if available)"
+    }
+  ]
 }
 
 FIELD CLASSIFICATION RULES:
@@ -84,6 +94,9 @@ IMPORTANT RULES:
 - For companies: exclude universities, schools, colleges from the companies array
 - For highestDegree: choose the highest from PhD > Master's > Bachelor's hierarchy
 - For field: Choose the MOST SPECIFIC category based on their current role and background
+- For experience_details: Extract job descriptions/responsibilities when available, focus on recent/relevant roles
+- For bio: Extract the full About section content if present
+- For headline: The short professional tagline, usually right under the name
 - If someone works in industry but has research background, classify by their current role
 - If information is not available, use null for strings or [] for arrays
 - Return valid JSON only, no explanations"""
@@ -126,6 +139,15 @@ Return the extracted profile data as JSON."""
             return None
         
         # Create Profile object with extracted data
+        experience_details = []
+        for exp in result.get("experience_details", []):
+            if isinstance(exp, dict) and exp.get("company") and exp.get("title"):
+                experience_details.append(ExperienceDetail(
+                    company=exp["company"],
+                    title=exp["title"],
+                    description=exp.get("description")
+                ))
+        
         profile = Profile(
             name=result.get("name"),
             role=result.get("role"),
@@ -135,7 +157,10 @@ Return the extracted profile data as JSON."""
             field=result.get("field"),  # Now extracted directly by LLM
             schools=result.get("schools", []),
             location=result.get("location"),
-            linkedinUrl=linkedin_url
+            linkedinUrl=linkedin_url,
+            bio=result.get("bio"),
+            headline=result.get("headline"),
+            experience_details=experience_details
         )
         
         logger.info(f"🎯 Created Profile object:")
@@ -146,6 +171,14 @@ Return the extracted profile data as JSON."""
         logger.info(f"   Location: {profile.location}")
         logger.info(f"   Schools: {profile.schools}")
         logger.info(f"   Highest Degree: {profile.highestDegree}")
+        logger.info(f"   Field: {profile.field}")
+        logger.info(f"   Bio: {profile.bio[:100] + '...' if profile.bio and len(profile.bio) > 100 else profile.bio}")
+        logger.info(f"   Headline: {profile.headline}")
+        logger.info(f"   Experience Details: {len(profile.experience_details)} entries")
+        for i, exp in enumerate(profile.experience_details[:3]):  # Log first 3 experiences
+            logger.info(f"     [{i+1}] {exp.title} at {exp.company}")
+            if exp.description:
+                logger.info(f"         Description: {exp.description[:100] + '...' if len(exp.description) > 100 else exp.description}")
         
         return profile
         
@@ -158,7 +191,7 @@ Return the extracted profile data as JSON."""
 
 async def classify_field_with_llm(profile: Profile) -> Optional[str]:
     """Use LLM to classify the person's field based on their profile information."""
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = config.OPENAI_API_KEY
     if not api_key:
         return None
     
@@ -238,8 +271,8 @@ Respond with JSON only."""
 
 
 async def maybe_generate_draft(profile: Profile, ask: str, message_type: str = "email") -> tuple[Optional[Draft], Optional[str], Optional[str]]:
-    provider_env = os.getenv("EMAIL_PROVIDER", "").lower()
-    api_key = os.getenv("OPENAI_API_KEY")
+    provider_env = config.EMAIL_PROVIDER
+    api_key = config.OPENAI_API_KEY
     
     print(f"DEBUG: EMAIL_PROVIDER = '{provider_env}'")
     print(f"DEBUG: OPENAI_API_KEY exists = {bool(api_key)}")
@@ -262,10 +295,12 @@ async def maybe_generate_draft(profile: Profile, ask: str, message_type: str = "
 async def _generate_with_openai(profile: Profile, ask: str, api_key: str, message_type: str) -> Draft:
     client = OpenAI(api_key=api_key)
     
-    # Build profile context
+    # Build enriched profile context
     profile_context = f"Name: {profile.name or 'Unknown'}"
     if profile.role:
         profile_context += f"\nRole: {profile.role}"
+    if profile.headline:
+        profile_context += f"\nHeadline: {profile.headline}"
     if profile.currentCompany:
         profile_context += f"\nCompany: {profile.currentCompany}"
     if profile.schools:
@@ -277,16 +312,32 @@ async def _generate_with_openai(profile: Profile, ask: str, api_key: str, messag
     if profile.location:
         profile_context += f"\nLocation: {profile.location}"
     
+    # Add bio if available
+    if profile.bio:
+        bio_excerpt = profile.bio[:200] + "..." if len(profile.bio) > 200 else profile.bio
+        profile_context += f"\nBio: {bio_excerpt}"
+    
+    # Add detailed experience for more targeted messaging
+    if profile.experience_details:
+        profile_context += f"\n\nExperience:"
+        for i, exp in enumerate(profile.experience_details[:3]):  # Include top 3 experiences
+            profile_context += f"\n- {exp.title} at {exp.company}"
+            if exp.description:
+                desc_excerpt = exp.description[:150] + "..." if len(exp.description) > 150 else exp.description
+                profile_context += f": {desc_excerpt}"
+    
     if message_type == "linkedin":
         system_prompt = """You are writing a LinkedIn outreach message. Keep it UNDER 300 characters total.
 
-Be direct, warm, and specific. Use these examples as templates for tone and style:
+Be direct, warm, and specific. Reference specific aspects of their background (experience, bio, current role) to show genuine interest.
+
+Use these examples as templates for tone and style:
 
 Example 1: "Hey Hans, Really cool background in NLP/Computational Social Science! I'm currently exploring MecInterp and AI Safety, and your work is super interesting. Would love to hear about your thoughts on industry research vs academia + learn more about why you're pursuing PhD. I'm exploring post-grad plans after getting a taste of big tech SWE, so your insights would be super"
 
 Example 2: "Hey Aaquib, Really cool background in ML Research and SWE — would love to hear about your experience in industry research, how that compares to academia + your take on PhDs. I'm exploring different paths for post-grad after getting a taste of big tech SWE, so your insights would be super helpful."
 
-When adapting these examples to the specific context, edit the example messages as little as possible while making them relevant to the person's background."""
+IMPORTANT: Use their detailed experience and bio to craft specific, personalized messages. Mention particular companies they've worked at, specific roles they've held, or interesting aspects from their bio when relevant to the request."""
 
         user_prompt = f"""Write a LinkedIn message for this person:
 
@@ -298,6 +349,8 @@ Remember: Keep it UNDER 300 characters total. Be direct, warm, and specific abou
 
     else:  # email
         system_prompt = """You are writing a professional outreach email. Be direct, warm, and respectful of their time.
+
+Use their detailed profile information (bio, experience, specific roles) to craft a personalized message that shows genuine interest in their career path.
 
 Use this example as a template for tone and structure:
 
@@ -315,7 +368,7 @@ I completely understand if you're too busy to respond; even a short reply (or a 
 
 All the best,"
 
-When adapting this example to the specific context, edit the example email as little as possible while making it relevant to the person's background."""
+IMPORTANT: Reference specific aspects of their experience, companies they've worked at, or interesting points from their bio to show you've done your research and are genuinely interested in their specific journey."""
 
         user_prompt = f"""Write a professional outreach email for this person:
 
