@@ -49,57 +49,30 @@ async def parse_linkedin_profile_with_llm(html_content: str, linkedin_url: str) 
         text_content = text_content[:25000] + "..."
         logger.info(f"✂️ Truncated content to 25000 characters")
     
-    system_prompt = """You are a LinkedIn profile parser. Extract structured information from the provided LinkedIn profile text content.
-
-Extract the following information and return it as valid JSON:
+    system_prompt = """Extract LinkedIn profile data as JSON:
 
 {
-  "name": "Full name of the person",
-  "role": "Current job title/role", 
-  "currentCompany": "Current company name",
-  "companies": ["Array of company names from work experience, excluding education institutions"],
-  "highestDegree": "Highest degree (PhD, Master's, or Bachelor's)",
-  "schools": ["Array of educational institutions"],
-  "location": "Geographic location",
-  "field": "Field classification - see rules below",
-  "bio": "The About section content - their personal/professional summary",
-  "headline": "The short tagline/headline under their name",
-  "experience_details": [
-    {
-      "company": "Company name",
-      "title": "Job title/role at this company", 
-      "description": "Job description/responsibilities (if available)"
-    }
-  ]
+  "name": "Full name",
+  "role": "Current job title", 
+  "currentCompany": "Current company",
+  "companies": ["All work companies (exclude schools)"],
+  "highestDegree": "PhD/Master's/Bachelor's",
+  "schools": ["Educational institutions"],
+  "location": "Location",
+  "field": "Field classification",
+  "bio": "About section text",
+  "headline": "Tagline under name",
+  "experience_details": [{"company": "X", "title": "Y", "description": "Z"}]
 }
 
-FIELD CLASSIFICATION RULES:
-Classify the person's field based on their role, experience, and background into ONE of these formats:
+Field options:
+- "industry - SWE" (software engineering)
+- "industry - PM" (product management) 
+- "industry - AI/ML" (AI/ML engineering)
+- "industry - Other" (other industry)
+- "research - [field]" (researchers, PhD students)
 
-INDUSTRY ROLES (use format "industry - {category}"):
-- "industry - SWE" for Software Engineers/Developers (general software engineering)
-- "industry - PM" for Product Managers
-- "industry - AI/ML" for AI/ML Engineers, Data Scientists, ML Engineers
-- "industry - Other" for other industry roles not covered above
-
-RESEARCH ROLES (use format "research - {specific field}"):
-- "research - Computer Science" for CS researchers, PhD students in CS
-- "research - Machine Learning" for ML/AI researchers
-- "research - Physics" for physics researchers
-- "research - Biology" for biology/biotech researchers
-- "research - [specific field]" for other research areas (be specific about the field)
-
-IMPORTANT RULES:
-- Extract only factual information present in the content
-- For companies: exclude universities, schools, colleges from the companies array
-- For highestDegree: choose the highest from PhD > Master's > Bachelor's hierarchy
-- For field: Choose the MOST SPECIFIC category based on their current role and background
-- For experience_details: Extract job descriptions/responsibilities when available, focus on recent/relevant roles
-- For bio: Extract the full About section content if present
-- For headline: The short professional tagline, usually right under the name
-- If someone works in industry but has research background, classify by their current role
-- If information is not available, use null for strings or [] for arrays
-- Return valid JSON only, no explanations"""
+Rules: Extract all companies from work history. Use current role for field classification. Return JSON only."""
 
     user_prompt = f"""Parse this LinkedIn profile content and extract the structured information:
 
@@ -380,7 +353,7 @@ Generate both a subject line and email body. Make it personal and specific to th
 
     response = await asyncio.to_thread(
         client.chat.completions.create,
-        model="gpt-5",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}

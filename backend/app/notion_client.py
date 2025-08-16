@@ -25,7 +25,7 @@ class NotionWrapper:
         props: Dict[str, Any] = {
             "Name": {"title": [{"text": {"content": profile.name or ""}}]},
             "Company": {"select": {"name": profile.currentCompany} if profile.currentCompany else None},  # Single select for current company
-            "Previous Companies": self._multi_select([c for c in profile.companies if c != profile.currentCompany]),  # Multiselect for previous companies
+            "Prev Companies": self._multi_select([c for c in profile.companies if c != profile.currentCompany]),  # Multiselect for previous companies
             "Role": {"rich_text": [{"text": {"content": profile.role or ""}}]},
             "School(s)": self._multi_select(profile.schools),
             "Highest Degree": {"select": {"name": profile.highestDegree} if profile.highestDegree else None},
